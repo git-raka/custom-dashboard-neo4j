@@ -1,0 +1,7 @@
+secrets/
+node_modules/
+.next/
+npm-debug.log*
+.env
+.env.*
+.DS_Store

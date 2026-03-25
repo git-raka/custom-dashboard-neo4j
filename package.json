@@ -1,0 +1,25 @@
+{
+  "name": "dashboard-neo4j",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modern Neo4j dashboard builder dengan login, query widget, dan graph explorer.",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "cytoscape": "^3.33.1",
+    "lucide-react": "^1.0.1",
+    "neo4j-driver": "^6.0.1",
+    "next": "^16.2.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-grid-layout": "^2.2.2",
+    "react-resizable": "^3.1.3"
+  }
+}
