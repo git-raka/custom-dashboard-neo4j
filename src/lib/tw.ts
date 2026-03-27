@@ -2,35 +2,40 @@ import clsx from "clsx";
 
 const TOKENS = {
   eyebrow:
-    "text-[12px] font-extrabold uppercase tracking-[0.18em] text-blue-700",
-  "login-shell": "grid h-dvh grid-cols-1 overflow-y-auto xl:grid-cols-[1.08fr_0.92fr]",
+    "text-[11px] font-extrabold uppercase tracking-[0.2em] text-blue-700",
+  "login-eyebrow":
+    "text-[13px] font-extrabold uppercase tracking-[0.22em] text-blue-700",
+  "login-shell":
+    "mx-auto grid min-h-screen w-full max-w-[1520px] grid-cols-1 gap-10 px-6 py-8 xl:grid-cols-[1.08fr_0.92fr] xl:gap-8 xl:px-9 xl:py-10",
   "hero-panel":
-    "flex flex-col justify-between p-7 xl:p-11 [&_h1]:my-4 [&_h1]:max-w-[11ch] [&_h1]:font-[var(--font-display)] [&_h1]:text-[clamp(3rem,6vw,5.2rem)] [&_h1]:leading-[0.94] [&_h1]:tracking-[-0.06em] [&_p]:max-w-[620px] [&_p]:text-[1.04rem] [&_p]:leading-[1.8] [&_p]:text-slate-700",
+    "flex flex-col gap-9 p-0 xl:pt-6",
+  "hero-title":
+    "my-2 text-balance text-left font-[var(--font-display)] text-[clamp(2.6rem,5vw,4.85rem)] leading-[1.01] tracking-[-0.03em] text-slate-900",
+  "hero-description": "text-[1.03rem] leading-[1.82] text-slate-600 text-justify",
   "feature-grid":
-    "mt-8 grid gap-4 [&_article]:grid [&_article]:gap-2 [&_article]:rounded-3xl [&_article]:border [&_article]:border-slate-200 [&_article]:bg-white [&_article]:p-5 [&_article_svg]:text-blue-600 [&_article_span]:text-slate-600",
-  "hero-metrics":
-    "grid grid-cols-1 gap-4 md:grid-cols-3 [&_div]:rounded-3xl [&_div]:border [&_div]:border-slate-200 [&_div]:bg-white [&_div]:p-5 [&_span]:mb-2 [&_span]:block [&_span]:text-xs [&_span]:uppercase [&_span]:tracking-[0.16em] [&_span]:text-slate-500",
-  "login-panel": "flex items-center justify-center p-7 xl:p-11",
+    "mt-1 grid gap-4 xl:grid-cols-1 [&_article]:grid [&_article]:gap-2.5 [&_article]:rounded-3xl [&_article]:border [&_article]:border-slate-200 [&_article]:bg-white [&_article]:p-6 [&_article_svg]:mb-1 [&_article_svg]:text-blue-600 [&_article_strong]:text-[1.56rem] [&_article_strong]:leading-tight [&_article_strong]:tracking-[-0.02em] [&_article_span]:text-[1.02rem] [&_article_span]:leading-relaxed [&_article_span]:text-slate-600",
+  "login-panel": "flex items-start justify-stretch p-0 xl:pt-6",
   "login-card":
-    "w-full max-w-[560px] rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm",
-  "login-head": "mb-6 grid gap-4 [&_h2]:text-[2rem] [&_h2]:tracking-[-0.05em]",
+    "w-full max-w-none rounded-[30px] border border-slate-200 bg-white p-8 shadow-sm min-h-[820px] xl:min-h-[calc(100vh-1.5rem)] flex flex-col justify-start xl:sticky xl:top-6 [&_label]:mb-3 [&_label>span]:text-[1.03rem] [&_label>span]:font-medium [&_label>span]:text-slate-700 [&_input]:mt-1 [&_select]:mt-1 [&_button[type='submit']]:mt-6",
+  "login-head":
+    "mt-16 mb-16 grid justify-items-center gap-3 text-center xl:mt-16 [&_h2]:text-[2.9rem] [&_h2]:leading-[1.04] [&_h2]:tracking-[-0.04em]",
   "security-pill":
     "inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600",
-  "dual-grid": "grid grid-cols-1 gap-4 md:grid-cols-2",
-  "remote-callout-grid": "my-1 mb-4 grid grid-cols-1 gap-4 md:grid-cols-2",
+  "dual-grid": "grid grid-cols-1 gap-5 md:grid-cols-2",
+  "remote-callout-grid": "my-1 mb-4 grid grid-cols-1 gap-3 md:grid-cols-2",
   "callout-card":
-    "flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 [&_svg]:text-blue-600 [&_strong]:mb-1 [&_strong]:block [&_span]:text-slate-600",
+    "flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 [&_svg]:text-blue-600 [&_strong]:mb-1 [&_strong]:block [&_strong]:text-[1.17rem] [&_strong]:leading-tight [&_strong]:tracking-[-0.01em] [&_span]:text-[1.02rem] [&_span]:leading-relaxed [&_span]:text-slate-600",
   "inline-error": "rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700",
   "banner-error": "rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700",
   "hint-row":
-    "inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600",
+    "inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-[0.97rem] text-slate-600",
   "primary-button":
     "inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 font-bold text-white transition hover:-translate-y-0.5",
   "ghost-button":
     "inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 font-bold text-slate-900 transition hover:-translate-y-0.5",
   "icon-button":
     "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:-translate-y-0.5",
-  "login-button": "my-2 mb-3 w-full",
+  "login-button": "my-2 mb-0 w-full",
   "chrome-shell": "grid min-h-screen grid-rows-[auto_1fr] bg-slate-100",
   "chrome-topbar":
     "sticky top-0 z-30 grid grid-cols-1 items-center gap-4 border-b border-slate-200 bg-white px-6 py-3 lg:grid-cols-[260px_1fr_auto]",
@@ -81,6 +86,7 @@ const TOKENS = {
   layout: "min-h-[60vh] min-w-0 max-w-full overflow-hidden",
   "widget-card":
     "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm",
+  "widget-report": "!rounded-md",
   "widget-head": "mb-3 flex flex-wrap items-center justify-between gap-3",
   "widget-drag":
     "inline-flex h-9 w-9 cursor-move items-center justify-center rounded-xl bg-slate-100 text-slate-600",
@@ -125,7 +131,13 @@ const TOKENS = {
   "report-play-button": "inline-flex h-14 w-14 items-center justify-center rounded-xl text-slate-600",
   "report-settings-grid": "grid grid-cols-1 gap-3",
   "report-field": "grid gap-1.5",
-  "report-select": "flex min-h-[52px] items-center justify-between rounded-xl border border-slate-300 px-3.5 text-slate-700",
+  "report-select-shell": "relative w-full",
+  "report-select": "flex w-full min-h-[52px] items-center justify-between rounded-xl border border-slate-300 px-3.5 text-slate-700",
+  "report-select-menu":
+    "absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-lg",
+  "report-select-option":
+    "block w-full rounded-xl px-3 py-2.5 text-left text-slate-800 transition hover:bg-slate-100",
+  "report-select-option-active": "bg-blue-100 text-blue-700",
   "report-query-box": "border border-slate-300",
   "report-query-hint": "border-t border-slate-300 px-2.5 py-2 text-sm text-slate-500",
   "report-advanced-row": "flex items-center gap-2.5 border-t border-dashed border-slate-300 pt-3 text-slate-800",
@@ -134,6 +146,18 @@ const TOKENS = {
   "report-template-head":
     "mb-5 grid grid-cols-[22px_minmax(0,1fr)_22px] items-center gap-2.5 text-slate-400 [&_span]:truncate [&_span]:text-[22px]",
   "report-more-button": "inline-flex h-[22px] w-[22px] items-center justify-center text-slate-400",
+  "report-result-shell":
+    "grid min-h-0 w-full grid-rows-[1fr_auto] overflow-hidden rounded-2xl border border-slate-200 bg-white",
+  "report-table-scroll": "min-h-0 max-h-[420px] overflow-auto",
+  "report-table":
+    "w-full border-collapse [&_thead_th]:bg-slate-100 [&_thead_th]:text-[0.86rem] [&_thead_th]:font-semibold [&_thead_th]:normal-case [&_thead_th]:tracking-normal [&_thead_th]:text-slate-600 [&_tbody_td]:text-[1.08rem] [&_tbody_td]:text-slate-800 [&_tbody_tr:nth-child(odd)]:bg-transparent [&_tbody_tr]:border-t [&_tbody_tr]:border-slate-200",
+  "report-table-footer":
+    "flex items-center justify-end gap-6 border-t border-slate-200 bg-white px-4 py-3 text-slate-700",
+  "report-table-footer-meta": "inline-flex items-center gap-2 text-[0.95rem] [&_strong]:font-semibold",
+  "report-table-footer-select":
+    "min-h-[34px] w-[86px] rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[0.95rem] text-slate-700",
+  "report-table-pager":
+    "inline-flex items-center gap-2 [&_button]:inline-flex [&_button]:h-8 [&_button]:w-8 [&_button]:items-center [&_button]:justify-center [&_button]:rounded-md [&_button]:text-xl [&_button]:leading-none [&_button]:text-slate-700 [&_button:disabled]:opacity-40",
   "graph-empty": "w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-600",
   "graph-stage": "grid min-h-0 w-full grid-rows-[auto_1fr_auto] gap-3",
   "graph-toolbar":
