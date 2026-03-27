@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { tw } from "@/lib/tw";
+
+type GraphEntity = Record<string, any>;
 
 const GROUP_COLORS = {
   Team: "#72d3ff",
@@ -12,11 +15,11 @@ const GROUP_COLORS = {
   Node: "#c6d1ff",
 };
 
-function propertyRows(properties = {}) {
+function propertyRows(properties: GraphEntity = {}) {
   return Object.entries(properties);
 }
 
-function buildElements(graph) {
+function buildElements(graph: GraphEntity) {
   const nodes = (graph?.nodes || []).map((node) => ({
     data: {
       id: node.id,
@@ -41,10 +44,10 @@ function buildElements(graph) {
   return [...nodes, ...edges];
 }
 
-export default function GraphWidget({ graph }) {
-  const containerRef = useRef(null);
-  const cyRef = useRef(null);
-  const [selection, setSelection] = useState(null);
+export default function GraphWidget({ graph }: { graph: GraphEntity }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const cyRef = useRef<any>(null);
+  const [selection, setSelection] = useState<GraphEntity | null>(null);
 
   const graphStats = useMemo(
     () => ({
@@ -143,7 +146,7 @@ export default function GraphWidget({ graph }) {
               width: 2.6,
             },
           },
-        ],
+        ] as any,
         layout: {
           name: "cose",
           animate: true,
@@ -209,45 +212,45 @@ export default function GraphWidget({ graph }) {
 
   if (!graph?.nodes?.length) {
     return (
-      <div className="graph-empty">
+      <div className={tw("graph-empty")}>
         Query ini belum mengembalikan node atau relationship.
       </div>
     );
   }
 
   return (
-    <div className="graph-stage">
-      <div className="graph-toolbar">
+    <div className={tw("graph-stage")}>
+      <div className={tw("graph-toolbar")}>
         <span>{graphStats.nodes} nodes</span>
         <span>{graphStats.edges} rels</span>
       </div>
-      <div className="graph-canvas" ref={containerRef} />
-      <div className="graph-inspector">
+      <div className={tw("graph-canvas")} ref={containerRef} />
+      <div className={tw("graph-inspector")}>
         {selection ? (
           <>
-            <div className="inspector-title">
+            <div className={tw("inspector-title")}>
               {selection.kind === "node" ? selection.group : selection.type}
             </div>
-            <div className="inspector-main">
+            <div className={tw("inspector-main")}>
               {selection.kind === "node"
                 ? selection.label
                 : `${selection.from} -> ${selection.to}`}
             </div>
-            <div className="inspector-properties">
+            <div className={tw("inspector-properties")}>
               {propertyRows(selection.properties).length ? (
                 propertyRows(selection.properties).map(([key, value]) => (
-                  <div key={key} className="property-row">
+                  <div key={key} className={tw("property-row")}>
                     <span>{key}</span>
                     <strong>{String(value)}</strong>
                   </div>
                 ))
               ) : (
-                <div className="property-empty">Tidak ada properti tambahan.</div>
+                <div className={tw("property-empty")}>Tidak ada properti tambahan.</div>
               )}
             </div>
           </>
         ) : (
-          <div className="property-empty">
+          <div className={tw("property-empty")}>
             Klik node atau edge untuk melihat detail seperti di explorer graph.
           </div>
         )}
@@ -255,3 +258,5 @@ export default function GraphWidget({ graph }) {
     </div>
   );
 }
+
+

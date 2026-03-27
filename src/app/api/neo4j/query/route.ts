@@ -36,7 +36,7 @@ export async function POST(request) {
   } catch (error) {
     return NextResponse.json(
       { error: error.message || "Query execution failed." },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }

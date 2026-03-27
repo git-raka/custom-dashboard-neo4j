@@ -1,20 +1,22 @@
 "use client";
 
 import clsx from "clsx";
+import { tw } from "@/lib/tw";
 import dynamic from "next/dynamic";
-import GridLayout, { WidthProvider } from "react-grid-layout/legacy";
+import GridLayout from "react-grid-layout";
 import { cloneLayout, correctBounds, getCompactor } from "react-grid-layout/core";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ArrowRight,
-  BarChart3,
   Cable,
+  ChevronDown,
+  CircleHelp,
   CirclePlay,
+  Copy,
   Database,
   GripVertical,
   LayoutGrid,
-  LineChart,
   LogOut,
   MonitorSmartphone,
   MoreHorizontal,
@@ -25,16 +27,35 @@ import {
   Server,
   ShieldCheck,
   Sparkles,
-  Table2,
   Trash2,
   Workflow,
   X,
+  PlusSquare,
 } from "lucide-react";
 
-const AutoWidthGrid = WidthProvider(GridLayout);
+type AnyRecord = Record<string, any>;
+type VoidFn = () => void;
+
+type WidgetBodyProps = {
+  widget: AnyRecord;
+  onAddReport: VoidFn;
+  reportSettingsOpen?: boolean;
+  onToggleReportSettings?: VoidFn;
+  onDeleteWidget?: VoidFn;
+  onReportQueryChange?: (query: string) => void;
+};
+
+type EditorModalProps = {
+  draft: AnyRecord | null;
+  onChange: (nextDraft: AnyRecord) => void;
+  onClose: VoidFn;
+  onSave: VoidFn;
+};
+
+
 const GraphWidget = dynamic(() => import("@/components/graph-widget"), {
   ssr: false,
-  loading: () => <div className="graph-empty">Menyiapkan visual graph...</div>,
+  loading: () => <div className={tw("graph-empty")}>Menyiapkan visual graph...</div>,
 });
 const GRID_COLUMNS = 12;
 const GRID_COMPACTOR = getCompactor("vertical", false, false);
@@ -51,16 +72,17 @@ const GRID_COLUMNS_BY_BREAKPOINT = {
   xs: 2,
 };
 const GRID_ROW_HEIGHT_BY_BREAKPOINT = {
-  lg: 34,
-  md: 32,
-  sm: 30,
-  xs: 28,
+  lg: 18,
+  md: 17,
+  sm: 16,
+  xs: 14,
 };
+const GRID_RIGHT_SAFETY_GUTTER = 4;
 const GRID_MARGIN_BY_BREAKPOINT = {
-  lg: [18, 18],
-  md: [16, 16],
-  sm: [14, 14],
-  xs: [12, 12],
+  lg: [12, 12],
+  md: [10, 10],
+  sm: [8, 8],
+  xs: [8, 8],
 };
 const GRID_BREAKPOINT_ORDER = ["lg", "md", "sm", "xs"];
 
@@ -107,24 +129,100 @@ function createId() {
   return `item-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function createWidget(type = "graph", seed = {}) {
+function createWidget(type = "graph", seed: AnyRecord = {}) {
   const baseLayouts = {
     stat: { x: 0, y: Infinity, w: 3, h: 4 },
-    table: { x: 3, y: Infinity, w: 5, h: 8 },
-    graph: { x: 0, y: Infinity, w: 8, h: 11 },
+    table: { x: 3, y: Infinity, w: 4, h: 5 },
+    graph: { x: 7, y: Infinity, w: 5, h: 7 },
+    report: { x: 0, y: Infinity, w: 4, h: 7 },
+    placeholder: { x: 0, y: Infinity, w: 4, h: 7 },
   };
 
   return {
     id: seed.id || createId(),
-    title: seed.title || "Untitled Widget",
+    title:
+      seed.title ||
+      (type === "report" ? "Report name..." : type === "placeholder" ? "Add report" : "Untitled Widget"),
     type,
-    query: seed.query || "MATCH p=(n)-[r]->(m) RETURN p LIMIT 20",
-    layout: seed.layout || baseLayouts[type],
+    query: seed.query ?? (type === "report" || type === "placeholder" ? "" : "MATCH p=(n)-[r]->(m) RETURN p LIMIT 20"),
+    layout: seed.layout ? { ...seed.layout } : { ...baseLayouts[type] },
     result: null,
     error: "",
     isLoading: false,
     lastRunAt: null,
   };
+}
+
+const WIDGET_SIZE_RULES = {
+  stat: { minW: 2, maxW: 6, minH: 3, maxH: 6 },
+  table: { minW: 3, maxW: 12, minH: 4, maxH: 10 },
+  graph: { minW: 4, maxW: 12, minH: 5, maxH: 12 },
+  report: { minW: 3, maxW: 12, minH: 5, maxH: 30 },
+  placeholder: { minW: 3, maxW: 12, minH: 5, maxH: 30 },
+};
+
+function getWidgetSizeRule(type = "graph") {
+  return WIDGET_SIZE_RULES[type] || WIDGET_SIZE_RULES.graph;
+}
+
+function toLayoutItem(widget: AnyRecord, cols = GRID_COLUMNS) {
+  const sizeRule = getWidgetSizeRule(widget.type);
+  const maxW = Math.max(1, Math.min(sizeRule.maxW, cols));
+  const minW = Math.max(1, Math.min(sizeRule.minW, maxW));
+  const maxH = Math.max(sizeRule.minH, sizeRule.maxH);
+  const minH = Math.max(1, Math.min(sizeRule.minH, maxH));
+  const boundedW = Math.max(minW, Math.min(widget.layout.w, maxW));
+  const boundedH = Math.max(minH, Math.min(widget.layout.h, maxH));
+  const boundedX = Number.isFinite(widget.layout.x)
+    ? Math.max(0, Math.min(widget.layout.x, cols - boundedW))
+    : 0;
+  const boundedY = Number.isFinite(widget.layout.y)
+    ? Math.max(0, widget.layout.y)
+    : 0;
+
+  return {
+    i: widget.id,
+    x: boundedX,
+    y: boundedY,
+    w: boundedW,
+    h: boundedH,
+    minW,
+    maxW,
+    minH,
+    maxH,
+    isDraggable: widget.type !== "placeholder",
+    isResizable: widget.type !== "placeholder",
+    isBounded: true,
+  };
+}
+
+function widgetsToLayout(widgets: AnyRecord[], cols = GRID_COLUMNS) {
+  return widgets.map((widget) => toLayoutItem(widget, cols));
+}
+
+function buildInitialWidgets() {
+  return [
+    createWidget("placeholder", {
+      title: "Add report",
+      query: "",
+      layout: { x: 0, y: 0, w: 4, h: 7 },
+    }),
+  ];
+}
+
+function ensurePlaceholderWidget(widgets: AnyRecord[] = []) {
+  if (widgets.some((widget) => widget.type === "placeholder")) {
+    return widgets;
+  }
+
+  return [
+    ...widgets,
+    createWidget("placeholder", {
+      title: "Add report",
+      query: "",
+      layout: { x: 4, y: 0, w: 4, h: 7 },
+    }),
+  ];
 }
 
 function buildStarterWidgets() {
@@ -135,18 +233,18 @@ function buildStarterWidgets() {
         index === 0
           ? { x: 0, y: 0, w: 3, h: 4 }
           : index === 1
-            ? { x: 3, y: 0, w: 4, h: 8 }
-            : { x: 7, y: 0, w: 5, h: 12 },
+            ? { x: 3, y: 0, w: 4, h: 5 }
+            : { x: 7, y: 0, w: 5, h: 7 },
     })
   );
 }
 
-function createDashboard(seed = {}) {
+function createDashboard(seed: AnyRecord = {}) {
   return {
     id: seed.id || createId(),
     name: seed.name || "Summary Dashboard",
     description: seed.description || "Reusable board for Neo4j analytics",
-    widgets: (seed.widgets || buildStarterWidgets()).map((widget) =>
+    widgets: (seed.widgets || buildInitialWidgets()).map((widget) =>
       createWidget(widget.type, widget)
     ),
   };
@@ -160,7 +258,7 @@ function buildDefaultWorkspace() {
   };
 }
 
-function stripRuntime(widget) {
+function stripRuntime(widget: AnyRecord) {
   return {
     id: widget.id,
     title: widget.title,
@@ -170,13 +268,13 @@ function stripRuntime(widget) {
   };
 }
 
-function getBreakpointForWidth(width) {
+function getBreakpointForWidth(width: number) {
   return GRID_BREAKPOINT_ORDER.find(
     (breakpoint) => width >= GRID_BREAKPOINTS[breakpoint]
   ) || "xs";
 }
 
-function scaleLayoutAcrossColumns(layout, fromCols, toCols) {
+function scaleLayoutAcrossColumns(layout: AnyRecord[], fromCols: number, toCols: number) {
   return layout.map((item) => {
     const nextW = Math.max(1, Math.min(toCols, Math.round((item.w / fromCols) * toCols)));
     const nextX = Math.max(
@@ -192,11 +290,11 @@ function scaleLayoutAcrossColumns(layout, fromCols, toCols) {
   });
 }
 
-function getLayoutBottom(layout) {
+function getLayoutBottom(layout: AnyRecord[]) {
   return layout.reduce((max, item) => Math.max(max, item.y + item.h), 0);
 }
 
-function layoutItemsOverlap(a, b) {
+function layoutItemsOverlap(a: AnyRecord, b: AnyRecord) {
   if (a.i === b.i) {
     return false;
   }
@@ -209,8 +307,8 @@ function layoutItemsOverlap(a, b) {
   );
 }
 
-function normalizeGridLayout(layout, cols = GRID_COLUMNS, pinnedItemId = null) {
-  const pending = cloneLayout(layout)
+function normalizeGridLayout(layout: AnyRecord[], cols = GRID_COLUMNS, pinnedItemId: string | null = null) {
+  const pending = cloneLayout(layout as any)
     .map((item, index) => ({ ...item, _index: index }))
     .sort((a, b) => {
       if (pinnedItemId) {
@@ -272,20 +370,38 @@ function normalizeGridLayout(layout, cols = GRID_COLUMNS, pinnedItemId = null) {
   const corrected = correctBounds(
     placed.map(({ _index, ...item }) => item),
     { cols }
-  );
-  return GRID_COMPACTOR.compact(corrected, cols);
+  ) as any;
+  return GRID_COMPACTOR.compact(corrected as any, cols);
+}
+
+function boundGridLayout(layout: AnyRecord[], cols = GRID_COLUMNS) {
+  return cloneLayout(layout as any).map((item) => {
+    const w = Math.max(1, Math.min(item.w ?? 1, cols));
+    const h = Math.max(1, item.h ?? 1);
+    const x = Number.isFinite(item.x) ? Math.max(0, Math.min(item.x, cols - w)) : 0;
+    const y = Number.isFinite(item.y) ? Math.max(0, item.y) : 0;
+
+    return {
+      ...item,
+      w,
+      h,
+      x,
+      y,
+    };
+  });
 }
 
 function applyLayoutToWidgets(
-  widgets,
-  layout,
-  pinnedItemId = null,
+  widgets: AnyRecord[],
+  layout: AnyRecord[],
+  pinnedItemId: string | null = null,
   cols = GRID_COLUMNS
 ) {
-  const normalizedLayout = normalizeGridLayout(layout, cols, pinnedItemId);
+  void pinnedItemId;
+  const boundedLayout = boundGridLayout(layout, cols);
 
   return widgets.map((widget) => {
-    const layoutItem = normalizedLayout.find((item) => item.i === widget.id);
+    const layoutItem = boundedLayout.find((item) => item.i === widget.id);
     return layoutItem
       ? {
           ...widget,
@@ -300,7 +416,16 @@ function applyLayoutToWidgets(
   });
 }
 
-function restoreWorkspace(payload) {
+function sanitizeDashboardWidgets(widgets: AnyRecord[] = []) {
+  return applyLayoutToWidgets(
+    widgets,
+    widgetsToLayout(widgets, GRID_COLUMNS),
+    null,
+    GRID_COLUMNS
+  );
+}
+
+function restoreWorkspace(payload: AnyRecord) {
   const dashboards = (payload?.dashboards || []).map((dashboard) =>
     createDashboard({
       ...dashboard,
@@ -310,22 +435,38 @@ function restoreWorkspace(payload) {
     })
   );
 
-  if (!dashboards.length) {
+  const sanitizedDashboards = dashboards.map((dashboard) => {
+    const widgetsWithPlaceholder = ensurePlaceholderWidget(dashboard.widgets);
+    const rawLayout = widgetsToLayout(widgetsWithPlaceholder, GRID_COLUMNS);
+
+    return {
+      ...dashboard,
+      widgets: applyLayoutToWidgets(
+        widgetsWithPlaceholder,
+        rawLayout,
+        null,
+        GRID_COLUMNS
+      ),
+    };
+  });
+
+  if (!sanitizedDashboards.length) {
     return buildDefaultWorkspace();
   }
 
   const activeDashboardId =
-    payload.activeDashboardId && dashboards.some((dashboard) => dashboard.id === payload.activeDashboardId)
+    payload.activeDashboardId &&
+    sanitizedDashboards.some((dashboard) => dashboard.id === payload.activeDashboardId)
       ? payload.activeDashboardId
-      : dashboards[0].id;
+      : sanitizedDashboards[0].id;
 
   return {
-    dashboards,
+    dashboards: sanitizedDashboards,
     activeDashboardId,
   };
 }
 
-function formatValue(value) {
+function formatValue(value: any) {
   if (value === null || value === undefined) {
     return "—";
   }
@@ -341,7 +482,7 @@ function formatValue(value) {
   return JSON.stringify(value);
 }
 
-function getStatData(result) {
+function getStatData(result: AnyRecord) {
   const firstRow = result?.rows?.[0];
   if (!firstRow) {
     return null;
@@ -358,7 +499,7 @@ function getStatData(result) {
   };
 }
 
-async function postJson(url, body) {
+async function postJson(url: string, body: AnyRecord) {
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -375,38 +516,148 @@ async function postJson(url, body) {
   return payload;
 }
 
-function WidgetBody({ widget }) {
+function WidgetBody({
+  widget,
+  onAddReport,
+  reportSettingsOpen = false,
+  onToggleReportSettings = () => {},
+  onDeleteWidget = () => {},
+  onReportQueryChange = () => {},
+}: WidgetBodyProps) {
+  if (widget.type === "placeholder") {
+    return (
+      <div className={tw("add-report-shell")}>
+        <button className={tw("add-report-button")} type="button" onClick={onAddReport}>
+          <PlusSquare size={34} />
+        </button>
+      </div>
+    );
+  }
+
+  if (widget.type === "report") {
+    return (
+      <div className={tw("report-template")}>
+        {reportSettingsOpen ? (
+          <div className={tw("report-settings-panel")}>
+            <div className={tw("report-settings-toolbar")}>
+              <div className={tw("report-settings-left")}>
+                <span className={`rgl-drag-handle ${tw("widget-drag report-drag")}`}>
+                  <GripVertical size={16} />
+                </span>
+                <button className={tw("report-icon ghost")} type="button" aria-label="Help">
+                  <CircleHelp size={18} />
+                </button>
+                <button
+                  className={tw("report-icon danger")}
+                  type="button"
+                  aria-label="Delete"
+                  onClick={onDeleteWidget}
+                >
+                  <Trash2 size={18} />
+                </button>
+                <button className={tw("report-icon success")} type="button" aria-label="Copy">
+                  <Copy size={18} />
+                </button>
+              </div>
+              <button
+                className={tw("report-play-button")}
+                type="button"
+                aria-label="Run"
+                onClick={onToggleReportSettings}
+              >
+                <CirclePlay size={18} />
+              </button>
+            </div>
+
+            <div className={tw("report-settings-grid")}>
+              <label className={tw("report-field")}>
+                <span>Type</span>
+                <button type="button" className={tw("report-select")}>
+                  <span>Table</span>
+                  <ChevronDown size={20} />
+                </button>
+              </label>
+            </div>
+
+            <div className={tw("report-query-box")}>
+              <textarea
+                value={widget.query || ""}
+                onChange={(event) => onReportQueryChange(event.target.value)}
+                spellCheck="false"
+                aria-label="Query"
+              />
+              <div className={tw("report-query-hint")}>A table will contain all returned data.</div>
+            </div>
+
+            <div className={tw("report-advanced-row")}>
+              <button className={tw("report-switch")} type="button" aria-label="Advanced settings">
+                <span />
+              </button>
+              <span>Advanced settings</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className={tw("report-template-head")}>
+              <span className={`rgl-drag-handle ${tw("widget-drag report-drag")}`}>
+                <GripVertical size={16} />
+              </span>
+              <span>{widget.title || "Report name..."}</span>
+              <button
+                className={tw("report-more-button")}
+                type="button"
+                onClick={onToggleReportSettings}
+                aria-label="Open report settings"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+            </div>
+            <p>
+              No query specified.
+              <br />
+              Use the{" "}
+              <button type="button" onClick={onToggleReportSettings}>
+                Report Settings
+              </button>{" "}
+              button to get started.
+            </p>
+          </>
+        )}
+      </div>
+    );
+  }
+
   if (widget.error) {
-    return <div className="widget-error">{widget.error}</div>;
+    return <div className={tw("widget-error")}>{widget.error}</div>;
   }
 
   if (!widget.result && !widget.isLoading) {
     return (
-      <div className="widget-empty">
+      <div className={tw("widget-empty")}>
         Jalankan query untuk melihat hasil widget ini.
       </div>
     );
   }
 
   if (widget.isLoading) {
-    return <div className="widget-empty">Menjalankan query...</div>;
+    return <div className={tw("widget-empty")}>Menjalankan query...</div>;
   }
 
   if (widget.type === "stat") {
     const stat = getStatData(widget.result);
     return stat ? (
-      <div className="stat-card">
-        <div className="stat-value">{stat.value}</div>
-        <div className="stat-label">{stat.label}</div>
+      <div className={tw("stat-card")}>
+        <div className={tw("stat-value")}>{stat.value}</div>
+        <div className={tw("stat-label")}>{stat.label}</div>
       </div>
     ) : (
-      <div className="widget-empty">Query stat tidak mengembalikan nilai tunggal.</div>
+      <div className={tw("widget-empty")}>Query stat tidak mengembalikan nilai tunggal.</div>
     );
   }
 
   if (widget.type === "table") {
     return (
-      <div className="table-shell">
+      <div className={tw("table-shell")}>
         <table>
           <thead>
             <tr>
@@ -432,25 +683,25 @@ function WidgetBody({ widget }) {
   return <GraphWidget graph={widget.result.graph} />;
 }
 
-function EditorModal({ draft, onChange, onClose, onSave }) {
+function EditorModal({ draft, onChange, onClose, onSave }: EditorModalProps) {
   if (!draft) {
     return null;
   }
 
   return (
-    <div className="modal-backdrop">
-      <div className="editor-modal">
-        <div className="modal-head">
+    <div className={tw("modal-backdrop")}>
+      <div className={tw("editor-modal")}>
+        <div className={tw("modal-head")}>
           <div>
-            <div className="eyebrow">Widget Editor</div>
+            <div className={tw("eyebrow")}>Widget Editor</div>
             <h3>{draft.isNew ? "Create widget" : "Refine widget"}</h3>
           </div>
-          <button className="icon-button" onClick={onClose} type="button">
+          <button className={tw("icon-button")} onClick={onClose} type="button">
             <X size={18} />
           </button>
         </div>
 
-        <div className="editor-grid">
+        <div className={tw("editor-grid")}>
           <label>
             <span>Title</span>
             <input
@@ -473,7 +724,7 @@ function EditorModal({ draft, onChange, onClose, onSave }) {
           </label>
         </div>
 
-        <label className="editor-query">
+        <label className={tw("editor-query")}>
           <span>Cypher query</span>
           <textarea
             value={draft.query}
@@ -483,11 +734,11 @@ function EditorModal({ draft, onChange, onClose, onSave }) {
           />
         </label>
 
-        <div className="recipe-strip">
+        <div className={tw("recipe-strip")}>
           {STARTER_QUERIES.map((preset) => (
             <button
               key={preset.title}
-              className="recipe-card"
+              className={tw("recipe-card")}
               type="button"
               onClick={() =>
                 onChange({
@@ -504,11 +755,11 @@ function EditorModal({ draft, onChange, onClose, onSave }) {
           ))}
         </div>
 
-        <div className="modal-actions">
-          <button className="ghost-button" onClick={onClose} type="button">
+        <div className={tw("modal-actions")}>
+          <button className={tw("ghost-button")} onClick={onClose} type="button">
             Batal
           </button>
-          <button className="primary-button" onClick={onSave} type="button">
+          <button className={tw("primary-button")} onClick={onSave} type="button">
             Simpan Widget
           </button>
         </div>
@@ -518,19 +769,22 @@ function EditorModal({ draft, onChange, onClose, onSave }) {
 }
 
 export default function BuilderApp() {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [gridWidth, setGridWidth] = useState(1280);
   const initialWorkspace = useMemo(() => buildDefaultWorkspace(), []);
-  const [credentials, setCredentials] = useState(DEFAULT_CREDENTIALS);
-  const [dashboards, setDashboards] = useState(initialWorkspace.dashboards);
+  const [credentials, setCredentials] = useState<AnyRecord>(DEFAULT_CREDENTIALS);
+  const [dashboards, setDashboards] = useState<AnyRecord[]>(initialWorkspace.dashboards);
   const [activeDashboardId, setActiveDashboardId] = useState(
     initialWorkspace.activeDashboardId
   );
-  const [editorDraft, setEditorDraft] = useState(null);
+  const [editorDraft, setEditorDraft] = useState<AnyRecord | null>(null);
   const [dashboardSearch, setDashboardSearch] = useState("");
   const [connected, setConnected] = useState(false);
-  const [connectionInfo, setConnectionInfo] = useState(null);
+  const [connectionInfo, setConnectionInfo] = useState<AnyRecord | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [bannerError, setBannerError] = useState("");
   const [activeBreakpoint, setActiveBreakpoint] = useState("lg");
+  const [reportSettingsByWidget, setReportSettingsByWidget] = useState<AnyRecord>({});
   const autoScrollFrameRef = useRef(0);
 
   useEffect(() => {
@@ -578,6 +832,10 @@ export default function BuilderApp() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !connected) {
+      return;
+    }
+
     const updateBreakpoint = () => {
       setActiveBreakpoint(getBreakpointForWidth(window.innerWidth));
     };
@@ -585,7 +843,7 @@ export default function BuilderApp() {
     updateBreakpoint();
     window.addEventListener("resize", updateBreakpoint);
     return () => window.removeEventListener("resize", updateBreakpoint);
-  }, []);
+  }, [connected]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -659,9 +917,14 @@ export default function BuilderApp() {
           return dashboard;
         }
 
-        return typeof updater === "function"
+        const nextDashboard = typeof updater === "function"
           ? updater(dashboard)
           : { ...dashboard, ...updater };
+
+        return {
+          ...nextDashboard,
+          widgets: sanitizeDashboardWidgets(nextDashboard.widgets || []),
+        };
       })
     );
   }
@@ -690,7 +953,9 @@ export default function BuilderApp() {
       setConnectionInfo(payload);
       if (activeDashboard?.widgets?.length) {
         await Promise.all(
-          activeDashboard.widgets.map((widget) => runWidget(activeDashboard.id, widget))
+          activeDashboard.widgets
+            .filter((widget) => widget.type !== "placeholder" && widget.type !== "report")
+            .map((widget) => runWidget(activeDashboard.id, widget))
         );
       }
     } catch (error) {
@@ -710,6 +975,10 @@ export default function BuilderApp() {
         : widgetInput;
 
     if (!widget) {
+      return;
+    }
+
+    if (widget.type === "placeholder" || widget.type === "report") {
       return;
     }
 
@@ -753,8 +1022,62 @@ export default function BuilderApp() {
 
     setBannerError("");
     await Promise.all(
-      activeDashboard.widgets.map((widget) => runWidget(activeDashboard.id, widget))
+      activeDashboard.widgets
+        .filter((widget) => widget.type !== "placeholder" && widget.type !== "report")
+        .map((widget) => runWidget(activeDashboard.id, widget))
     );
+  }
+
+  function addReportFromPlaceholder(dashboardId, placeholderId) {
+    updateDashboard(dashboardId, (dashboard) => {
+      const placeholderWidget = dashboard.widgets.find(
+        (widget) => widget.id === placeholderId
+      );
+      if (!placeholderWidget) {
+        return dashboard;
+      }
+
+      const nextWidgets = dashboard.widgets.filter((widget) => widget.id !== placeholderId);
+      const placeholderLayout = placeholderWidget.layout;
+      const report = createWidget("report", {
+        title: "Report name...",
+        query: "",
+        layout: {
+          x: placeholderLayout.x,
+          y: placeholderLayout.y,
+          w: placeholderLayout.w,
+          h: placeholderLayout.h,
+        },
+      });
+
+      const nextPlaceholderX = placeholderLayout.x + placeholderLayout.w;
+      const nextPlaceholderFits = nextPlaceholderX + placeholderLayout.w <= GRID_COLUMNS;
+      const placeholder = createWidget("placeholder", {
+        title: "Add report",
+        query: "",
+        layout: nextPlaceholderFits
+          ? {
+              x: nextPlaceholderX,
+              y: placeholderLayout.y,
+              w: placeholderLayout.w,
+              h: placeholderLayout.h,
+            }
+          : {
+              x: 0,
+              y: placeholderLayout.y + placeholderLayout.h,
+              w: placeholderLayout.w,
+              h: placeholderLayout.h,
+            },
+      });
+
+      const merged = [report, ...nextWidgets, placeholder];
+      const nextLayout = widgetsToLayout(merged, GRID_COLUMNS);
+
+      return {
+        ...dashboard,
+        widgets: applyLayoutToWidgets(merged, nextLayout),
+      };
+    });
   }
 
   function openCreateWidget(type, preset = null) {
@@ -769,7 +1092,7 @@ export default function BuilderApp() {
   function addDashboard() {
     const nextDashboard = createDashboard({
       name: `Dashboard ${dashboards.length + 1}`,
-      widgets: [],
+      widgets: buildInitialWidgets(),
     });
     setDashboards((current) => [...current, nextDashboard]);
     setActiveDashboardId(nextDashboard.id);
@@ -780,15 +1103,10 @@ export default function BuilderApp() {
       ...dashboard,
       widgets: applyLayoutToWidgets(
         dashboard.widgets.filter((widget) => widget.id !== widgetId),
-        dashboard.widgets
-          .filter((widget) => widget.id !== widgetId)
-          .map((widget) => ({
-            i: widget.id,
-            x: widget.layout.x,
-            y: widget.layout.y,
-            w: widget.layout.w,
-            h: widget.layout.h,
-          }))
+        widgetsToLayout(
+          dashboard.widgets.filter((widget) => widget.id !== widgetId),
+          GRID_COLUMNS
+        )
       ),
     }));
   }
@@ -824,13 +1142,7 @@ export default function BuilderApp() {
             }),
           ];
 
-      const nextLayouts = nextWidgets.map((widget) => ({
-        i: widget.id,
-        x: widget.layout.x,
-        y: widget.layout.y,
-        w: widget.layout.w,
-        h: widget.layout.h,
-      }));
+      const nextLayouts = widgetsToLayout(nextWidgets, GRID_COLUMNS);
 
       return {
         ...dashboard,
@@ -847,19 +1159,14 @@ export default function BuilderApp() {
     }
 
     const activeCols = GRID_COLUMNS_BY_BREAKPOINT[activeBreakpoint];
-    const normalizedLayout = normalizeGridLayout(
-      nextLayout,
-      activeCols,
-      activeItem?.i || null
-    );
+    const boundedActiveLayout = correctBounds(nextLayout as any, { cols: activeCols });
     const desktopLayout =
       activeCols === GRID_COLUMNS
-        ? normalizedLayout
-        : normalizeGridLayout(
-            scaleLayoutAcrossColumns(normalizedLayout, activeCols, GRID_COLUMNS),
-            GRID_COLUMNS,
-            activeItem?.i || null
-          );
+        ? boundedActiveLayout
+        : correctBounds(
+            scaleLayoutAcrossColumns(boundedActiveLayout as any, activeCols, GRID_COLUMNS) as any,
+            { cols: GRID_COLUMNS }
+          ) as any;
 
     updateDashboard(activeDashboard.id, (dashboard) => ({
       ...dashboard,
@@ -873,9 +1180,9 @@ export default function BuilderApp() {
   }
 
   function handleLayoutChange(nextLayout) {
-    if (GRID_COLUMNS_BY_BREAKPOINT[activeBreakpoint] === GRID_COLUMNS) {
-      syncDashboardLayout(nextLayout);
-    }
+    // GridLayout already manages the active drag/resize placeholder internally.
+    // We only persist to dashboard state on stop handlers to avoid visual drift.
+    void nextLayout;
   }
 
   function queueViewportAutoScroll(nativeEvent) {
@@ -927,34 +1234,73 @@ export default function BuilderApp() {
   );
 
   const widgets = activeDashboard?.widgets || [];
+  function toggleReportSettings(widgetId) {
+    setReportSettingsByWidget((current) => ({
+      ...current,
+      [widgetId]: !current[widgetId],
+    }));
+  }
+
   const activeGridCols = GRID_COLUMNS_BY_BREAKPOINT[activeBreakpoint];
   const activeRowHeight = GRID_ROW_HEIGHT_BY_BREAKPOINT[activeBreakpoint];
   const activeGridMargin = GRID_MARGIN_BY_BREAKPOINT[activeBreakpoint];
+  const effectiveGridWidth = Math.max(0, Math.floor(gridWidth));
+  const gridRenderKey = `${activeBreakpoint}-${activeGridCols}-${effectiveGridWidth}`;
   const renderedLayout = useMemo(
     () => {
-      const desktopLayout = widgets.map((widget) => ({
-        i: widget.id,
-        x: widget.layout.x,
-        y: widget.layout.y,
-        w: widget.layout.w,
-        h: widget.layout.h,
-      }));
+      const desktopLayout = widgetsToLayout(widgets, GRID_COLUMNS);
 
       const responsiveLayout =
         activeGridCols === GRID_COLUMNS
           ? desktopLayout
           : scaleLayoutAcrossColumns(desktopLayout, GRID_COLUMNS, activeGridCols);
 
-      return normalizeGridLayout(responsiveLayout, activeGridCols);
+      return correctBounds(responsiveLayout as any, { cols: activeGridCols });
     },
     [widgets, activeGridCols]
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!connected) {
+      return;
+    }
+
+    const node = containerRef.current;
+    if (!node) {
+      return;
+    }
+
+    const measure = () => {
+      const nextWidth = Math.max(
+        0,
+        Math.floor(node.clientWidth - GRID_RIGHT_SAFETY_GUTTER)
+      );
+      setGridWidth((prev) => (prev !== nextWidth ? nextWidth : prev));
+    };
+
+    measure();
+
+    const observer = new ResizeObserver(() => {
+      measure();
+    });
+    observer.observe(node);
+    window.addEventListener("resize", measure);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [connected]);
+
   if (!connected) {
     return (
-      <main className="login-shell">
-        <section className="hero-panel">
-          <div className="eyebrow">NeoDeck Builder</div>
+      <main className={tw("login-shell")}>
+        <section className={tw("hero-panel")}>
+          <div className={tw("eyebrow")}>NeoDeck Builder</div>
           <h1>Siap connect ke Neo4j local maupun instance remote lain.</h1>
           <p>
             Aplikasi ini tidak terkunci ke localhost. Selama backend Next.js ini bisa
@@ -962,7 +1308,7 @@ export default function BuilderApp() {
             domain publik, atau instance lainnya.
           </p>
 
-          <div className="feature-grid">
+          <div className={tw("feature-grid")}>
             <article>
               <Sparkles size={18} />
               <strong>Modern NeoDash Feel</strong>
@@ -980,7 +1326,7 @@ export default function BuilderApp() {
             </article>
           </div>
 
-          <div className="hero-metrics">
+          <div className={tw("hero-metrics")}>
             <div>
               <span>Single instance</span>
               <strong>`bolt://192.168.18.16:7687` + Direct</strong>
@@ -996,14 +1342,14 @@ export default function BuilderApp() {
           </div>
         </section>
 
-        <section className="login-panel">
-          <form className="login-card" onSubmit={handleConnect}>
-            <div className="login-head">
+        <section className={tw("login-panel")}>
+          <form className={tw("login-card")} onSubmit={handleConnect}>
+            <div className={tw("login-head")}>
               <div>
-                <div className="eyebrow">Connect</div>
+                <div className={tw("eyebrow")}>Connect</div>
                 <h2>Masuk ke Neo4j</h2>
               </div>
-              <div className="security-pill">
+              <div className={tw("security-pill")}>
                 <ShieldCheck size={16} />
                 Password tidak disimpan di local storage.
               </div>
@@ -1023,7 +1369,7 @@ export default function BuilderApp() {
               />
             </label>
 
-            <div className="dual-grid">
+            <div className={tw("dual-grid")}>
               <label>
                 <span>Username</span>
                 <input
@@ -1053,7 +1399,7 @@ export default function BuilderApp() {
               </label>
             </div>
 
-            <div className="dual-grid">
+            <div className={tw("dual-grid")}>
               <label>
                 <span>Connection Mode</span>
                 <select
@@ -1087,15 +1433,15 @@ export default function BuilderApp() {
               </label>
             </div>
 
-            <div className="remote-callout-grid">
-              <div className="callout-card">
+            <div className={tw("remote-callout-grid")}>
+              <div className={tw("callout-card")}>
                 <Cable size={16} />
                 <div>
                   <strong>Direct mode</strong>
                   <span>Pakai untuk IP / single instance agar tidak kena error routing table.</span>
                 </div>
               </div>
-              <div className="callout-card">
+              <div className={tw("callout-card")}>
                 <MonitorSmartphone size={16} />
                 <div>
                   <strong>Public deployment</strong>
@@ -1104,14 +1450,14 @@ export default function BuilderApp() {
               </div>
             </div>
 
-            {bannerError ? <div className="inline-error">{bannerError}</div> : null}
+            {bannerError ? <div className={tw("inline-error")}>{bannerError}</div> : null}
 
-            <button className="primary-button login-button" type="submit">
+            <button className={tw("primary-button login-button")} type="submit">
               {isConnecting ? "Connecting..." : "Connect & Open Builder"}
               <ArrowRight size={18} />
             </button>
 
-            <div className="hint-row">
+            <div className={tw("hint-row")}>
               <Database size={16} />
               Untuk screenshot error routing table seperti NeoDash, biasanya cukup ganti ke
               `bolt://...` atau pilih Direct mode.
@@ -1123,29 +1469,29 @@ export default function BuilderApp() {
   }
 
   return (
-    <main className="chrome-shell">
-      <header className="chrome-topbar">
-        <div className="chrome-brand">
-          <div className="brand-mark">N</div>
+    <main className={tw("chrome-shell")}>
+      <header className={tw("chrome-topbar")}>
+        <div className={tw("chrome-brand")}>
+          <div className={tw("brand-mark")}>N</div>
           <div>
             <strong>NeoDeck Studio</strong>
             <span>Neo4j dashboard workspace</span>
           </div>
         </div>
 
-        <div className="chrome-connection">
+        <div className={tw("chrome-connection")}>
           <Server size={16} />
           <span>{connectionInfo?.resolvedUri || credentials.uri}</span>
           <em>{connectionInfo?.resolvedMode || credentials.connectionMode}</em>
         </div>
 
-        <div className="chrome-actions">
-          <button className="ghost-button" type="button" onClick={runAllWidgets}>
+        <div className={tw("chrome-actions")}>
+          <button className={tw("ghost-button")} type="button" onClick={runAllWidgets}>
             <RefreshCw size={16} />
             Refresh Widgets
           </button>
           <button
-            className="ghost-button"
+            className={tw("ghost-button")}
             type="button"
             onClick={() => {
               setConnected(false);
@@ -1158,25 +1504,25 @@ export default function BuilderApp() {
         </div>
       </header>
 
-      <div className="workspace-shell">
-        <aside className="neo-sidebar">
-          <div className="sidebar-head">
+      <div className={tw("workspace-shell")}>
+        <aside className={tw("neo-sidebar")}>
+          <div className={tw("sidebar-head")}>
             <div>
-              <span className="sidebar-caption">Dashboards</span>
+              <span className={tw("sidebar-caption")}>Dashboards</span>
               <strong>{dashboards.length} workspace</strong>
             </div>
 
-            <div className="sidebar-head-actions">
-              <button className="icon-button" type="button" onClick={addDashboard}>
+            <div className={tw("sidebar-head-actions")}>
+              <button className={tw("icon-button")} type="button" onClick={addDashboard}>
                 <Plus size={16} />
               </button>
-              <button className="icon-button" type="button" onClick={runAllWidgets}>
+              <button className={tw("icon-button")} type="button" onClick={runAllWidgets}>
                 <RefreshCw size={16} />
               </button>
             </div>
           </div>
 
-          <label className="sidebar-search">
+          <label className={tw("sidebar-search")}>
             <Search size={16} />
             <input
               value={dashboardSearch}
@@ -1185,17 +1531,15 @@ export default function BuilderApp() {
             />
           </label>
 
-          <div className="dashboard-list">
+          <div className={tw("dashboard-list")}>
             {filteredDashboards.map((dashboard) => (
               <button
                 key={dashboard.id}
                 type="button"
-                className={clsx("dashboard-row", {
-                  active: dashboard.id === activeDashboardId,
-                })}
+                className={tw(clsx("dashboard-row", { "dashboard-row-active": dashboard.id === activeDashboardId }))}
                 onClick={() => setActiveDashboardId(dashboard.id)}
               >
-                <div className="dashboard-row-copy">
+                <div className={tw("dashboard-row-copy")}>
                   <strong>{dashboard.name}</strong>
                   <span>{dashboard.widgets.length} widgets</span>
                 </div>
@@ -1204,12 +1548,12 @@ export default function BuilderApp() {
             ))}
           </div>
 
-          <div className="sidebar-summary-card">
-            <div className="sidebar-summary-head">
+          <div className={tw("sidebar-summary-card")}>
+            <div className={tw("sidebar-summary-head")}>
               <Database size={16} />
               <strong>Connection</strong>
             </div>
-            <div className="meta-list compact">
+            <div className={tw("meta-list compact")}>
               <div>
                 <span>URI</span>
                 <strong>{connectionInfo?.resolvedUri || credentials.uri}</strong>
@@ -1226,14 +1570,14 @@ export default function BuilderApp() {
           </div>
         </aside>
 
-        <section className="neo-main">
-          <div className="main-hero">
-            <div className="main-hero-copy">
-              <div className="eyebrow">Workspace Builder</div>
-              <div className="title-row">
+        <section className={tw("neo-main")}>
+          <div className={tw("main-hero")}>
+            <div className={tw("main-hero-copy")}>
+              <div className={tw("eyebrow")}>Workspace Builder</div>
+              <div className={tw("title-row")}>
                 <PencilLine size={18} />
                 <input
-                  className="main-title-input"
+                  className={tw("main-title-input")}
                   value={activeDashboard?.name || ""}
                   onChange={(event) =>
                     updateDashboard(activeDashboard.id, {
@@ -1244,146 +1588,148 @@ export default function BuilderApp() {
                 />
               </div>
               <p>
-                Layout sekarang sudah mengikuti pola NeoDash: sidebar kiri, tab dashboard,
-                dan grid builder yang tetap bisa drag and resize.
+                Tambahkan widget langsung dari tile plus di canvas, lalu drag/resize sesuai kebutuhan.
               </p>
-            </div>
-
-            <div className="main-hero-actions">
-              <button className="ghost-button" type="button" onClick={() => openCreateWidget("stat")}>
-                <BarChart3 size={16} />
-                Stat
-              </button>
-              <button className="ghost-button" type="button" onClick={() => openCreateWidget("table")}>
-                <Table2 size={16} />
-                Table
-              </button>
-              <button className="ghost-button" type="button" onClick={() => openCreateWidget("graph")}>
-                <LineChart size={16} />
-                Graph
-              </button>
             </div>
           </div>
 
-          <div className="dashboard-tabs">
+          <div className={tw("dashboard-tabs")}>
             {dashboards.map((dashboard) => (
               <button
                 key={dashboard.id}
                 type="button"
-                className={clsx("dashboard-tab", {
-                  active: dashboard.id === activeDashboardId,
-                })}
+                className={tw(clsx("dashboard-tab", { "dashboard-tab-active": dashboard.id === activeDashboardId }))}
                 onClick={() => setActiveDashboardId(dashboard.id)}
               >
                 {dashboard.name}
               </button>
             ))}
-            <button className="dashboard-tab add" type="button" onClick={addDashboard}>
+            <button className={tw("dashboard-tab add")} type="button" onClick={addDashboard}>
               <Plus size={16} />
             </button>
           </div>
 
-          {bannerError ? <div className="banner-error">{bannerError}</div> : null}
+          {bannerError ? <div className={tw("banner-error")}>{bannerError}</div> : null}
 
-          <div className="workspace-headline">
-            <div className="headline-card">
+          <div className={tw("workspace-headline")}>
+            <div className={tw("headline-card")}>
               <Activity size={16} />
               {dashboardStats.widgets} widgets aktif
             </div>
-            <div className="headline-card">
+            <div className={tw("headline-card")}>
               <LayoutGrid size={16} />
               Drag, resize, dan simpan layout per dashboard
             </div>
-            <div className="headline-card">
+            <div className={tw("headline-card")}>
               <Workflow size={16} />
               Query graph, table, atau stat dari instance mana pun yang reachable
             </div>
           </div>
 
           {widgets.length ? (
-            <AutoWidthGrid
-              className="layout"
-              cols={activeGridCols}
-              rowHeight={activeRowHeight}
-              margin={activeGridMargin}
-              containerPadding={[0, 0]}
-              compactType="vertical"
-              allowOverlap={false}
-              preventCollision={false}
-              resizeHandles={["n", "s", "e", "w", "ne", "nw", "se", "sw"]}
-              draggableHandle=".widget-drag"
-              layout={renderedLayout}
-              onDrag={handleGridPointerMove}
-              onResize={handleGridPointerMove}
-              onLayoutChange={handleLayoutChange}
-              onDragStop={syncDashboardLayout}
-              onResizeStop={syncDashboardLayout}
-            >
-              {widgets.map((widget) => (
-                <section
-                  key={widget.id}
-                  className={clsx("widget-card", `widget-${widget.type}`)}
+            <div ref={containerRef} className={tw("grid-shell")}>
+              {effectiveGridWidth > 0 ? (
+                <GridLayout
+                  key={gridRenderKey}
+                  className={tw("layout")}
+                  width={effectiveGridWidth}
+                  gridConfig={{
+                    cols: activeGridCols,
+                    rowHeight: activeRowHeight,
+                    margin: activeGridMargin,
+                    containerPadding: activeGridMargin,
+                  }}
+                  compactor={GRID_COMPACTOR}
+                  dragConfig={{
+                    enabled: true,
+                    bounded: true,
+                    handle: ".rgl-drag-handle",
+                    cancel:
+                      ".react-resizable-handle,button,input,textarea,select,a,table,th,td",
+                    threshold: 0,
+                  }}
+                  resizeConfig={{
+                    enabled: true,
+                    handles: ["se"],
+                  }}
+                  layout={renderedLayout}
+                  onDrag={handleGridPointerMove}
+                  onResize={handleGridPointerMove}
+                  onLayoutChange={handleLayoutChange}
+                  onDragStop={syncDashboardLayout}
+                  onResizeStop={syncDashboardLayout}
                 >
-                  <header className="widget-head">
-                    <div className="widget-drag">
-                      <GripVertical size={15} />
-                    </div>
-                    <div className="widget-title-block">
-                      <div className="widget-kicker">{widget.type}</div>
-                      <h3>{widget.title}</h3>
-                    </div>
-                    <div className="widget-actions">
-                      <button
-                        className="icon-button"
-                        type="button"
-                        onClick={() => runWidget(activeDashboard.id, widget)}
-                      >
-                        <CirclePlay size={16} />
-                      </button>
-                      <button
-                        className="icon-button"
-                        type="button"
-                        onClick={() =>
-                          setEditorDraft({
-                            ...widget,
-                            dashboardId: activeDashboard.id,
-                            isNew: false,
-                          })
-                        }
-                      >
-                        <PencilLine size={16} />
-                      </button>
-                      <button
-                        className="icon-button danger"
-                        type="button"
-                        onClick={() => removeWidget(activeDashboard.id, widget.id)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </header>
-
-                  <div className="query-chip">{widget.query}</div>
-                  <div className="widget-body">
-                    <WidgetBody widget={widget} />
-                  </div>
-                </section>
-              ))}
-            </AutoWidthGrid>
+                  {widgets.map((widget) => (
+                    <section
+                      key={widget.id}
+                      className={tw(clsx("widget-card", `widget-${widget.type}`))}
+                    >
+                      {widget.type !== "placeholder" && widget.type !== "report" ? (
+                        <>
+                          <header className={tw("widget-head")}>
+                            <div className={`rgl-drag-handle ${tw("widget-drag")}`}>
+                              <GripVertical size={15} />
+                            </div>
+                            <div className={tw("widget-title-block")}>
+                              <div className={tw("widget-kicker")}>{widget.type}</div>
+                              <h3>{widget.title}</h3>
+                            </div>
+                            <div className={tw("widget-actions")}>
+                              <button
+                                className={tw("icon-button")}
+                                type="button"
+                                onClick={() => runWidget(activeDashboard.id, widget)}
+                              >
+                                <CirclePlay size={16} />
+                              </button>
+                              <button
+                                className={tw("icon-button")}
+                                type="button"
+                                onClick={() =>
+                                  setEditorDraft({
+                                    ...widget,
+                                    dashboardId: activeDashboard.id,
+                                    isNew: false,
+                                  })
+                                }
+                              >
+                                <PencilLine size={16} />
+                              </button>
+                              <button
+                                className={tw("icon-button danger")}
+                                type="button"
+                                onClick={() => removeWidget(activeDashboard.id, widget.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </header>
+                          <div className={tw("query-chip")}>{widget.query}</div>
+                        </>
+                      ) : null}
+                      <div className={tw("widget-body")}>
+                        <WidgetBody
+                          widget={widget}
+                          onAddReport={() => addReportFromPlaceholder(activeDashboard.id, widget.id)}
+                          reportSettingsOpen={Boolean(reportSettingsByWidget[widget.id])}
+                          onToggleReportSettings={() => toggleReportSettings(widget.id)}
+                          onDeleteWidget={() => removeWidget(activeDashboard.id, widget.id)}
+                          onReportQueryChange={(nextQuery) =>
+                            updateWidget(activeDashboard.id, widget.id, { query: nextQuery })
+                          }
+                        />
+                      </div>
+                    </section>
+                  ))}
+                </GridLayout>
+              ) : null}
+            </div>
           ) : (
-            <div className="empty-dashboard">
-              <div className="empty-dashboard-card">
+            <div className={tw("empty-dashboard")}>
+              <div className={tw("empty-dashboard-card")}>
                 <Sparkles size={18} />
                 <strong>Dashboard ini masih kosong</strong>
                 <span>Tambahkan widget baru dari tombol stat, table, atau graph.</span>
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => openCreateWidget("graph")}
-                >
-                  <Plus size={16} />
-                  Add First Widget
-                </button>
               </div>
             </div>
           )}
@@ -1399,3 +1745,5 @@ export default function BuilderApp() {
     </main>
   );
 }
+
+

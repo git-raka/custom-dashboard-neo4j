@@ -1,5 +1,7 @@
 import neo4j from "neo4j-driver";
 
+type NeoDeckError = Error & { statusCode?: number };
+
 const DIRECT_SCHEME_MAP = {
   "neo4j://": "bolt://",
   "neo4j+s://": "bolt+s://",
@@ -61,6 +63,17 @@ function isRoutingError(error) {
   );
 }
 
+function isAuthError(error) {
+  const message = error?.message || "";
+  return (
+    /unauthorized/i.test(message) ||
+    /authentication failure/i.test(message) ||
+    /invalid principal or credentials/i.test(message) ||
+    /permission denied/i.test(message) ||
+    /42NFF|42NFD/i.test(message)
+  );
+}
+
 function enforceAllowList(uri) {
   const rawAllowList = process.env.NEODECK_ALLOWED_HOSTS;
   if (!rawAllowList) {
@@ -82,6 +95,12 @@ function enforceAllowList(uri) {
 
 function enrichError(error, requestedUri, mode) {
   const message = error?.message || "Neo4j connection failed.";
+  if (isAuthError(error)) {
+    const authError = new Error("Username atau password invalid.") as NeoDeckError;
+    authError.statusCode = 401;
+    return authError;
+  }
+
   if (isRoutingError(error)) {
     return new Error(
       `${message} Untuk single instance atau IP langsung seperti ${requestedUri.replace(/^neo4j(\+s|\+ssc)?:\/\//, "bolt$1://")}, gunakan Direct mode atau skema bolt://. Gunakan Routed mode hanya jika server Neo4j Anda benar-benar menyalakan routing/cluster discovery.`

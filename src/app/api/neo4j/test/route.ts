@@ -39,7 +39,7 @@ export async function POST(request) {
   } catch (error) {
     return NextResponse.json(
       { error: error.message || "Neo4j connection failed." },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }
